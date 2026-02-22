@@ -1,14 +1,12 @@
 # Safety Observations vs Incidents Analyzer (SharePoint MVP)
 
-This MVP analyzes safety **incident** and **observation** data by location and month, then generates:
+This MVP analyzes safety **incident** and **observation** data by location/month (project-level using `project number`), then generates:
 
 - `reports/location_summary.xlsx`
 - `reports/location_summary.csv`
 - `reports/report.html` (single-file HTML dashboard)
 
-It runs immediately with sample local files and includes a SharePoint Graph data-source abstraction for enterprise rollout.
-
-## Quick start (non-coder friendly)
+## Quick start
 
 1. Install Python 3.11+.
 2. Open terminal in this folder.
@@ -22,60 +20,63 @@ It runs immediately with sample local files and includes a SharePoint Graph data
    ```
 5. Open `reports/report.html` in your browser.
 
-## Configuration
+## Run modes
 
-Edit `config.yaml`.
+### 1) Local mode (default)
+- `mode: local` in `config.yaml`
+- Reads from `sample_data/` so you can validate the end-to-end flow without SharePoint access.
 
-### Local mode (default)
-- `mode: local`
-- Uses `sample_data/incidents.csv`, `sample_data/observations.csv`, `sample_data/exposure.csv`.
-
-### SharePoint Graph mode
+### 2) SharePoint Graph mode (enterprise)
 - Set `mode: graph`
-- Fill in tenant/client/site/drive settings under `sharepoint`.
-- Uses Device Code Flow (no hardcoded credentials).
+- Uses **Device Code Flow** (no hard-coded credentials)
+- Supports SharePoint **Document Library files** and **SharePoint Lists**.
 
-Supported SharePoint source types:
-- Document library files (`source_type: document_library`)
-- SharePoint lists (`source_type: list`)
+For this project, `config.yaml` is pre-filled for document library files:
+- Weekly Claims Report.xlsx (incidents)
+- Observation Export - Safety Inspection.xlsx (observations)
+- Safety_Metrics.xlsx (exposure)
 
-## Column mapping and data variability
+You can provide files by either:
+- `*_file_url` (direct SharePoint link), or
+- `document_library_drive_id` + `*_file_path`.
 
-`config.yaml` includes column mapping dictionaries to map inconsistent source headers to canonical fields.
+## Data mapping
 
-Canonical incident fields:
-- `incident_id`, `date`, `location`, `severity`, `category`
+`config.yaml` contains configurable mapping dictionaries so inconsistent source column names are mapped to canonical fields.
 
-Canonical observation fields:
-- `observation_id`, `date`, `location`, `category`, `observation_type`
-- quality proxy helpers if present (comments, corrective action, closure date, etc.)
+This repo is pre-configured for your stated keys:
+- Join/location key: `project number`
+- Incident date: `loss date`
+- Observation date: `Observation date`
+- Exposure date: `Valuation Date`
+- Exposure source: `Safety_Metrics.xlsx`
 
-## What analytics are included
+## Analytics included
 
-- Monthly counts by location for incidents and observations
-- Severity index and serious-potential counts
-- Incident rate per 200k hours (if exposure provided)
-- Correlation + lagged correlations (0/1/2 month) between observations and incidents
-- Leading indicator score (composite quality proxy)
-- Mismatch flags:
-  - high observations + non-improving incidents = potential quality/coaching issue
-  - low observations + high incidents = potential coverage issue
-- Guidance generation with action, rationale, and KPI
+- Monthly incident counts and severity index by location/project
+- Observation volume and quality proxies
+- Incident rate per 200k hours (when exposure exists)
+- Observation-vs-incident correlation and lagged correlation (0/1/2 month)
+- Leading indicator score (weighted composite; weights configurable)
+- Mismatch detection:
+  - high observations + flat/worse incidents → quality/coaching issue
+  - low observations + high incidents → coverage/resource issue
+- Auto-generated guidance (action + rationale + KPI)
 
 ## Project structure
 
-- `src/data_sources.py` - Data source abstraction and implementations
-- `src/preprocess.py` - Standardization and mapping
-- `src/analysis.py` - Metrics, effectiveness, mismatch heuristics, guidance
-- `src/reporting.py` - HTML and Excel/CSV output
-- `src/main.py` - one-command entrypoint
-- `sample_data/` - runnable sample datasets
-- `reports/` - output artifacts
+- `src/data_sources.py` - data-source abstraction (local + graph)
+- `src/preprocess.py` - schema mapping and standardization
+- `src/analysis.py` - metrics, heuristics, and guidance
+- `src/reporting.py` - Excel/CSV + HTML report generation
+- `src/main.py` - entrypoint
+- `sample_data/` - demo data
+- `reports/` - generated outputs
 
-## Critical questions to finalize your environment setup
+## Notes for Azure app registration
 
-Please share these to wire to your real SharePoint data:
-1. SharePoint source type: **Document Library files** or **SharePoint Lists**?
-2. Exact file names (or list names) and folder paths.
-3. Column names for **location** and **date** in each dataset.
-4. Exposure data availability (hours worked/headcount): **yes/no**.
+For graph mode, ensure your app registration allows delegated permissions:
+- `Files.Read.All`
+- `Sites.Read.All`
+
+Then grant admin consent according to your tenant policy.

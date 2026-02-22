@@ -11,6 +11,14 @@ SEVERITY_WEIGHTS = {
     "recordable": 4,
 }
 
+DEFAULT_LEADING_WEIGHTS = {
+    "observation_volume": 0.25,
+    "corrective_action_rate": 0.25,
+    "comment_quality": 0.20,
+    "closure_speed": 0.20,
+    "high_risk_coverage": 0.10,
+}
+
 
 def monthly_location_metrics(
     incidents: pd.DataFrame,
@@ -42,7 +50,12 @@ def monthly_location_metrics(
     return merged
 
 
-def location_effectiveness(monthly: pd.DataFrame, lag_months: list[int]) -> pd.DataFrame:
+def location_effectiveness(
+    monthly: pd.DataFrame,
+    lag_months: list[int],
+    leading_weights: dict[str, float] | None = None,
+) -> pd.DataFrame:
+    weights = _normalized_weights(leading_weights or DEFAULT_LEADING_WEIGHTS)
     rows = []
     for location, group in monthly.groupby("location"):
         group = group.sort_values("month").copy()
@@ -52,12 +65,19 @@ def location_effectiveness(monthly: pd.DataFrame, lag_months: list[int]) -> pd.D
             shifted = group["incident_count"].shift(-lag)
             lag_corrs[f"lag_{lag}"] = group["observation_count"].corr(shifted) if len(group) > 1 else np.nan
 
-        volume_norm = _norm(group["observation_count"].mean(), monthly["observation_count"])
-        ca_norm = group["corrective_action_rate"].mean()
-        comment_norm = _norm(group["avg_comment_len"].mean(), monthly["avg_comment_len"])
-        closure_norm = 1 - _norm(group["avg_closure_days"].replace(0, np.nan).mean(), monthly["avg_closure_days"].replace(0, np.nan))
-        risk_norm = group["high_risk_coverage"].mean()
-        leading_score = np.nanmean([volume_norm, ca_norm, comment_norm, closure_norm, risk_norm]) * 100
+        component_scores = {
+            "observation_volume": _norm(group["observation_count"].mean(), monthly["observation_count"]),
+            "corrective_action_rate": group["corrective_action_rate"].mean(),
+            "comment_quality": _norm(group["avg_comment_len"].mean(), monthly["avg_comment_len"]),
+            "closure_speed": 1
+            - _norm(
+                group["avg_closure_days"].replace(0, np.nan).mean(),
+                monthly["avg_closure_days"].replace(0, np.nan),
+            ),
+            "high_risk_coverage": group["high_risk_coverage"].mean(),
+        }
+
+        leading_score = sum(component_scores[k] * weights[k] for k in weights) * 100
 
         rows.append(
             {
@@ -73,10 +93,14 @@ def location_effectiveness(monthly: pd.DataFrame, lag_months: list[int]) -> pd.D
     return pd.DataFrame(rows)
 
 
-def mismatch_flags(effectiveness: pd.DataFrame) -> pd.DataFrame:
-    high_obs = effectiveness["mean_observations"] >= effectiveness["mean_observations"].quantile(0.7)
-    low_obs = effectiveness["mean_observations"] <= effectiveness["mean_observations"].quantile(0.3)
-    high_inc = effectiveness["mean_incidents"] >= effectiveness["mean_incidents"].quantile(0.7)
+def mismatch_flags(
+    effectiveness: pd.DataFrame,
+    high_incident_threshold_quantile: float = 0.7,
+    low_observation_threshold_quantile: float = 0.3,
+) -> pd.DataFrame:
+    high_obs = effectiveness["mean_observations"] >= effectiveness["mean_observations"].quantile(1 - low_observation_threshold_quantile)
+    low_obs = effectiveness["mean_observations"] <= effectiveness["mean_observations"].quantile(low_observation_threshold_quantile)
+    high_inc = effectiveness["mean_incidents"] >= effectiveness["mean_incidents"].quantile(high_incident_threshold_quantile)
     flat_or_worse = effectiveness["incident_trend"] >= 0
 
     effectiveness = effectiveness.copy()
@@ -109,7 +133,7 @@ def build_guidance(effectiveness: pd.DataFrame, categories: pd.DataFrame) -> pd.
             )
         if (row.get("lag_1") or 0) > 0:
             recs.append(
-                f"Observation activity is not yet translating into lower next-month incidents; tighten closure accountability for high-risk findings."
+                "Observation activity is not yet translating into lower next-month incidents; tighten closure accountability for high-risk findings."
             )
         if not recs:
             recs.append("Maintain current controls and focus on sustaining closure speed and supervisor participation.")
@@ -125,9 +149,17 @@ def build_guidance(effectiveness: pd.DataFrame, categories: pd.DataFrame) -> pd.
     return pd.DataFrame(guidance_rows)
 
 
+def _normalized_weights(weights: dict[str, float]) -> dict[str, float]:
+    merged = {**DEFAULT_LEADING_WEIGHTS, **weights}
+    total = sum(max(0.0, v) for v in merged.values())
+    if total <= 0:
+        return DEFAULT_LEADING_WEIGHTS
+    return {k: max(0.0, v) / total for k, v in merged.items()}
+
+
 def _norm(value: float, series: pd.Series) -> float:
     mn, mx = np.nanmin(series), np.nanmax(series)
-    if np.isnan(value) or mx == mn:
+    if np.isnan(value) or np.isnan(mn) or np.isnan(mx) or mx == mn:
         return 0.5
     return float((value - mn) / (mx - mn))
 
