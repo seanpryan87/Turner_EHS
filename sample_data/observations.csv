@@ -1,0 +1,14 @@
+record_id,event_date,job_site,activity,audit_type,unsafe_count,safe_behaviors,notes,action_created,action_status,action_closed_date,leadership_present,high_potential
+OBS-001,2025-01-03,Plant A,Rigging,BBS,3,7,Good engagement but recurring dropped-object risks,1,Closed,2025-01-10,1,1
+OBS-002,2025-01-14,Plant A,Housekeeping,Inspection,1,9,Minor spill controls reinforced,0,, ,1,0
+OBS-003,2025-01-19,Plant B,Working at Height,Audit,4,5,Edge protection gaps identified and escalated,1,Open,,0,1
+OBS-004,2025-01-24,Plant C,Manual Handling,BBS,2,8,Observed poor lifting posture in maintenance bay,1,Closed,2025-02-03,1,0
+OBS-005,2025-02-05,Plant A,Forklift Operations,Inspection,2,6,Backing alarms inconsistently used during peak traffic,1,Closed,2025-02-20,0,1
+OBS-006,2025-02-11,Plant B,Press Operations,Audit,3,4,Guarding bypass observed on Press Line 2,1,Open,,0,1
+OBS-007,2025-02-19,Plant C,Electrical Work,Inspection,1,7,Lockout tagout checklist incomplete,1,Closed,2025-03-01,1,1
+OBS-008,2025-03-04,Plant A,Scaffolding,BBS,5,5,Frequent dropped tools and tether noncompliance,1,Open,,0,1
+OBS-009,2025-03-13,Plant B,Working at Height,Audit,4,4,Repeated ladder angle issues despite briefing,1,Open,,0,1
+OBS-010,2025-03-20,Plant C,Panel Maintenance,Inspection,2,6,Arc-flash labeling unclear in one section,0,, ,1,1
+OBS-011,2025-04-02,Plant A,Chemical Handling,BBS,1,9,PPE compliance high but eyewash access blocked briefly,1,Closed,2025-04-08,1,0
+OBS-012,2025-04-15,Plant B,Working at Height,Audit,3,5,Continued edge opening housekeeping concerns,1,Open,,0,1
+OBS-013,2025-04-21,Plant C,Machine Guarding,Inspection,3,5,Recurring guarding gaps after shift handover,1,Open,,1,1

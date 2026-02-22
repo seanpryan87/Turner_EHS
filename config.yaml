@@ -1,0 +1,59 @@
+mode: local  # local or graph
+
+sharepoint:
+  tenant_id: "YOUR_TENANT_ID"
+  client_id: "YOUR_CLIENT_ID"
+  authority: "https://login.microsoftonline.com/YOUR_TENANT_ID"
+  site_id: "YOUR_SITE_ID"
+  document_library_drive_id: "YOUR_DRIVE_ID"
+  incident_file_path: "Shared Documents/Safety/incidents.xlsx"
+  observation_file_path: "Shared Documents/Safety/observations.xlsx"
+  incident_list_name: "Incidents"
+  observation_list_name: "Observations"
+  source_type: "document_library"  # document_library or list
+
+local:
+  incident_path: "sample_data/incidents.csv"
+  observation_path: "sample_data/observations.csv"
+  exposure_path: "sample_data/exposure.csv"
+
+analysis:
+  time_granularity: "M"
+  lag_months: [0, 1, 2]
+  high_incident_threshold_quantile: 0.7
+  low_observation_threshold_quantile: 0.3
+  leading_indicator_weights:
+    observation_volume: 0.25
+    corrective_action_rate: 0.25
+    comment_quality: 0.20
+    closure_speed: 0.20
+    high_risk_coverage: 0.10
+
+column_mapping:
+  incidents:
+    incident_id: ["incident_id", "id", "record_id"]
+    date: ["date", "incident_date", "event_date"]
+    location: ["location", "site", "job_site", "region"]
+    severity: ["severity", "injury_severity", "classification"]
+    category: ["category", "type", "hazard_type", "incident_type"]
+    description: ["description", "details", "summary"]
+    trade_contractor: ["trade", "contractor", "trade_contractor"]
+    serious_potential: ["serious_potential", "sif_potential", "high_potential"]
+  observations:
+    observation_id: ["observation_id", "id", "record_id"]
+    date: ["date", "observation_date", "event_date"]
+    location: ["location", "site", "job_site", "region"]
+    category: ["category", "hazard_type", "activity"]
+    observation_type: ["observation_type", "type", "audit_type"]
+    at_risk_count: ["at_risk_count", "at_risk", "unsafe_count"]
+    safe_count: ["safe_count", "safe", "safe_behaviors"]
+    comments: ["comments", "comment", "notes"]
+    corrective_action_created: ["corrective_action_created", "action_created", "ca_created"]
+    corrective_action_status: ["corrective_action_status", "action_status", "status"]
+    closure_date: ["closure_date", "action_closed_date", "closed_date"]
+    supervisor_participation: ["supervisor_participation", "supervisor_present", "leadership_present"]
+    serious_potential: ["serious_potential", "sif_potential", "high_potential"]
+  exposure:
+    location: ["location", "site"]
+    date: ["date", "month"]
+    exposure_hours: ["hours", "exposure_hours", "work_hours"]
