@@ -1,0 +1,13 @@
+id,incident_date,site,classification,hazard_type,details,contractor,sif_potential
+INC-001,2025-01-08,Plant A,Recordable,Struck-by,Hand injury during rigging,SteelCrew,1
+INC-002,2025-01-21,Plant A,First Aid,Slip/Trip,Minor slip near loading bay,OpsTeam,0
+INC-003,2025-01-28,Plant B,Near Miss,Fall from Height,Lanyard snagged while descending,BuildCo,1
+INC-004,2025-02-10,Plant A,Property Damage,Vehicle,Backing incident with forklift,OpsTeam,0
+INC-005,2025-02-18,Plant B,Recordable,Caught-between,Finger pinch in press,BuildCo,1
+INC-006,2025-02-26,Plant C,First Aid,Ergonomic,Strain during lifting,MaintCo,0
+INC-007,2025-03-06,Plant A,Near Miss,Struck-by,Dropped tool from scaffold,SteelCrew,1
+INC-008,2025-03-16,Plant B,Recordable,Fall from Height,Ankle fracture on ladder,BuildCo,1
+INC-009,2025-03-22,Plant C,Property Damage,Electrical,Panel short caused smoke,MaintCo,1
+INC-010,2025-04-09,Plant A,First Aid,Chemical,Skin irritation while cleaning,OpsTeam,0
+INC-011,2025-04-13,Plant B,Near Miss,Fall from Height,Missed step at edge opening,BuildCo,1
+INC-012,2025-04-25,Plant C,Recordable,Struck-by,Hand crushed by moving part,MaintCo,1
