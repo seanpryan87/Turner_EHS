@@ -25,13 +25,13 @@ def monthly_location_metrics(
     observations: pd.DataFrame,
     exposure: pd.DataFrame | None,
 ) -> pd.DataFrame:
-    inc = incidents.groupby(["location", "month"], dropna=False).agg(
+    inc = incidents.groupby(["project", "business_unit", "business_center", "month"], dropna=False).agg(
         incident_count=("incident_id", "count"),
         severity_index=("severity", lambda s: s.astype(str).str.lower().map(SEVERITY_WEIGHTS).fillna(2).sum()),
         serious_incidents=("serious_potential", "sum"),
     )
 
-    obs = observations.groupby(["location", "month"], dropna=False).agg(
+    obs = observations.groupby(["project", "business_unit", "business_center", "month"], dropna=False).agg(
         observation_count=("observation_id", "count"),
         corrective_action_rate=("corrective_action_created", "mean"),
         avg_comment_len=("comment_len", "mean"),
@@ -41,7 +41,11 @@ def monthly_location_metrics(
 
     merged = inc.join(obs, how="outer").reset_index().fillna(0)
     if exposure is not None:
-        merged = merged.merge(exposure, on=["location", "month"], how="left")
+        merged = merged.merge(
+            exposure[["project", "month", "exposure_hours"]],
+            on=["project", "month"],
+            how="left",
+        )
         merged["incident_rate_per_200k_hours"] = np.where(
             merged["exposure_hours"] > 0,
             (merged["incident_count"] / merged["exposure_hours"]) * 200000,
@@ -57,7 +61,7 @@ def location_effectiveness(
 ) -> pd.DataFrame:
     weights = _normalized_weights(leading_weights or DEFAULT_LEADING_WEIGHTS)
     rows = []
-    for location, group in monthly.groupby("location"):
+    for project, group in monthly.groupby("project"):
         group = group.sort_values("month").copy()
         base_corr = group["observation_count"].corr(group["incident_count"]) if len(group) > 1 else np.nan
         lag_corrs = {}
@@ -81,7 +85,9 @@ def location_effectiveness(
 
         rows.append(
             {
-                "location": location,
+                "location": project,
+                "business_unit": group["business_unit"].iloc[0],
+                "business_center": group["business_center"].iloc[0],
                 "obs_incident_corr": base_corr,
                 **lag_corrs,
                 "leading_indicator_score": leading_score,
@@ -110,16 +116,16 @@ def mismatch_flags(
 
 
 def top_categories(incidents: pd.DataFrame, observations: pd.DataFrame) -> pd.DataFrame:
-    inc_top = incidents.groupby(["location", "category"]).size().reset_index(name="incident_hits")
-    obs_top = observations.groupby(["location", "category"]).size().reset_index(name="observation_hits")
-    return inc_top.merge(obs_top, on=["location", "category"], how="outer").fillna(0)
+    inc_top = incidents.groupby(["project", "category"]).size().reset_index(name="incident_hits")
+    obs_top = observations.groupby(["project", "category"]).size().reset_index(name="observation_hits")
+    return inc_top.merge(obs_top, on=["project", "category"], how="outer").fillna(0)
 
 
 def build_guidance(effectiveness: pd.DataFrame, categories: pd.DataFrame) -> pd.DataFrame:
     guidance_rows = []
     for _, row in effectiveness.iterrows():
         location = row["location"]
-        local_cats = categories[categories["location"] == location].sort_values("incident_hits", ascending=False)
+        local_cats = categories[categories["project"] == location].sort_values("incident_hits", ascending=False)
         top_cat = local_cats.iloc[0]["category"] if not local_cats.empty else "general risk"
 
         recs = []
@@ -149,6 +155,74 @@ def build_guidance(effectiveness: pd.DataFrame, categories: pd.DataFrame) -> pd.
     return pd.DataFrame(guidance_rows)
 
 
+def emerging_risk_dashboard(
+    monthly: pd.DataFrame,
+    incidents: pd.DataFrame,
+    observations: pd.DataFrame,
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    if "incident_rate_per_200k_hours" not in monthly.columns:
+        monthly = monthly.copy()
+        monthly["incident_rate_per_200k_hours"] = np.nan
+    latest_month = monthly["month"].max()
+    recent = monthly[monthly["month"] >= latest_month - pd.DateOffset(months=2)].copy()
+    recent = recent.groupby(["project", "business_unit", "business_center"], as_index=False).agg(
+        incidents_3m=("incident_count", "sum"),
+        severe_3m=("serious_incidents", "sum"),
+        observations_3m=("observation_count", "sum"),
+        avg_incident_rate=("incident_rate_per_200k_hours", "mean"),
+        incident_trend=("incident_count", lambda s: _slope(s)),
+    )
+    recent["observation_gap"] = recent["incidents_3m"] / recent["observations_3m"].replace(0, np.nan)
+    recent["observation_gap"] = recent["observation_gap"].fillna(recent["incidents_3m"])
+
+    for col in ["incidents_3m", "severe_3m", "avg_incident_rate", "incident_trend", "observation_gap"]:
+        recent[f"{col}_n"] = _norm_series(recent[col])
+
+    recent["emerging_risk_score"] = (
+        (0.30 * recent["incidents_3m_n"])
+        + (0.25 * recent["severe_3m_n"])
+        + (0.20 * recent["avg_incident_rate_n"])
+        + (0.15 * recent["incident_trend_n"])
+        + (0.10 * recent["observation_gap_n"])
+    ) * 100
+    risk = recent.sort_values("emerging_risk_score", ascending=False).reset_index(drop=True)
+
+    user_risk = (
+        pd.concat(
+            [
+                incidents.assign(source="incident", event_id=incidents["incident_id"], event_weight=2)[
+                    ["project", "user", "subcontractor", "source", "event_id", "serious_potential", "event_weight"]
+                ],
+                observations.assign(source="observation", event_id=observations["observation_id"], event_weight=1)[
+                    ["project", "user", "subcontractor", "source", "event_id", "serious_potential", "event_weight"]
+                ],
+            ],
+            ignore_index=True,
+        )
+        .fillna("")
+    )
+    user_risk = user_risk[(user_risk["user"] != "") | (user_risk["subcontractor"] != "")]
+    user_rollup = user_risk.groupby(["project", "user", "subcontractor"], as_index=False).agg(
+        total_events=("event_id", "count"),
+        serious_potential_events=("serious_potential", "sum"),
+        weighted_volume=("event_weight", "sum"),
+    )
+    user_rollup["risk_touch_score"] = (
+        user_rollup["weighted_volume"] + (2 * user_rollup["serious_potential_events"])
+    )
+    user_rollup = user_rollup.sort_values("risk_touch_score", ascending=False)
+
+    subcontractor_rollup = user_rollup.groupby(["project", "subcontractor"], as_index=False).agg(
+        contributors=("user", "nunique"),
+        total_events=("total_events", "sum"),
+        serious_potential_events=("serious_potential_events", "sum"),
+        risk_touch_score=("risk_touch_score", "sum"),
+    )
+    subcontractor_rollup = subcontractor_rollup.sort_values("risk_touch_score", ascending=False)
+
+    return risk, user_rollup, subcontractor_rollup
+
+
 def _normalized_weights(weights: dict[str, float]) -> dict[str, float]:
     merged = {**DEFAULT_LEADING_WEIGHTS, **weights}
     total = sum(max(0.0, v) for v in merged.values())
@@ -170,3 +244,10 @@ def _slope(series: pd.Series) -> float:
     if len(y) < 2:
         return 0.0
     return float(np.polyfit(x, y, 1)[0])
+
+
+def _norm_series(series: pd.Series) -> pd.Series:
+    mn, mx = series.min(skipna=True), series.max(skipna=True)
+    if pd.isna(mn) or pd.isna(mx) or mn == mx:
+        return pd.Series(0.5, index=series.index)
+    return (series - mn) / (mx - mn)
