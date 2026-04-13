@@ -1,6 +1,6 @@
 # Safety Observations vs Incidents Analyzer (SharePoint MVP)
 
-This MVP analyzes safety **incident** and **observation** data by location/month (project-level using `project number`), then generates:
+This MVP analyzes safety **incident** and **observation** data by month with reusable entity mapping, then generates:
 
 - `reports/location_summary.xlsx`
 - `reports/location_summary.csv`
@@ -17,6 +17,10 @@ This MVP analyzes safety **incident** and **observation** data by location/month
 4. Run:
    ```bash
    python -m src.main
+   ```
+   Or run with new uploads:
+   ```bash
+   python -m src.main --incidents path/to/incidents.xlsx --observations path/to/observations.xlsx --exposure path/to/exposure.xlsx
    ```
 5. Open `reports/report.html` in your browser.
 
@@ -54,6 +58,7 @@ This repo is pre-configured for your stated keys:
 ## Analytics included
 
 - Monthly incident counts and severity index by location/project
+- Emerging risk score (latest 3-month weighted ranking)
 - Observation volume and quality proxies
 - Incident rate per 200k hours (when exposure exists)
 - Observation-vs-incident correlation and lagged correlation (0/1/2 month)
@@ -62,6 +67,16 @@ This repo is pre-configured for your stated keys:
   - high observations + flat/worse incidents → quality/coaching issue
   - low observations + high incidents → coverage/resource issue
 - Auto-generated guidance (action + rationale + KPI)
+- Hierarchy resolution and cleaning across inconsistent source labels:
+  - Project -> Business Unit -> Business Center
+  - User-to-subcontractor risk linkage
+
+## Reusable mapping outputs
+
+The dashboard writes reusable crosswalks you can use each month without rebuilding mapping logic:
+- `hierarchy_map` sheet
+- `user_risk_links` sheet
+- `subcontractor_risk` sheet
 
 ## Project structure
 
